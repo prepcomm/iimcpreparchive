@@ -415,7 +415,7 @@ body.auth-locked > :not(#authGate):not(script){display:none!important}
       if(isAllowed(payload)){
         status.classList.remove('auth-error');
         status.classList.add('auth-success');
-        status.textContent = 'Email Verified Scroll Down';
+        status.textContent = '<span style="color:red;">Email Verified Scroll Down</span>';
         unlock(payload.email, payload.exp);
       }else{
         try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){}
