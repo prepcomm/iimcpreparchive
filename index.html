@@ -4,6 +4,7 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IIM Calcutta · Placement Interview Compendium</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 /* set theme before first paint to avoid flash */
 try{ if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){
@@ -323,9 +324,155 @@ html[data-fill="gradient"] .tab.active .n{background:linear-gradient(115deg,var(
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important;animation:none!important}
 }
+
+
+/* ============ lightweight Google authentication gate ============ */
+body.auth-locked > :not(#authGate):not(script){display:none!important}
+#authGate{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px;
+  background:var(--paper);color:var(--ink);font-family:var(--sans)
+}
+.auth-card{
+  width:min(460px,100%);background:var(--card);border:1px solid var(--line);border-radius:16px;
+  box-shadow:var(--shadow-lg);padding:34px 30px;text-align:center
+}
+.auth-mark{
+  width:58px;height:58px;margin:0 auto 18px;border-radius:14px;display:grid;place-items:center;
+  background:var(--accent);color:#fff;font-family:var(--serif);font-size:25px;font-weight:700
+}
+.auth-card h1{font-family:var(--serif);font-size:25px;line-height:1.2;margin-bottom:9px}
+.auth-card p{color:var(--ink-soft);font-size:14px;line-height:1.6;margin:0 auto 18px;max-width:370px}
+.auth-domain{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:650}
+#googleSignIn{display:flex;justify-content:center;min-height:44px;margin:22px 0 12px}
+#authStatus{min-height:22px;font-size:13px;color:var(--ink-soft);line-height:1.45}
+#authStatus.auth-error{color:#c0392b;font-weight:650}
+.auth-note{font-size:11.5px!important;color:var(--ink-faint)!important;margin-top:18px!important}
+.auth-retry{
+  margin-top:12px;padding:9px 14px;border-radius:8px;border:1.5px solid var(--line);
+  background:var(--card);color:var(--ink);font-weight:650;display:none
+}
+.auth-retry:hover,.auth-retry:focus-visible{border-color:var(--accent);outline:none}
+@media(max-width:560px){.auth-card{padding:28px 20px}.auth-card h1{font-size:22px}}
 </style>
 </head>
-<body style="">
+<body style="" class="auth-locked">
+
+<section id="authGate" aria-labelledby="authTitle">
+  <div class="auth-card">
+    <div class="auth-mark" aria-hidden="true">IIMC</div>
+    <h1 id="authTitle">Placement Interview Compendium</h1>
+    <p>This archive is for the IIM Calcutta student community. Sign in using your institute Google account to continue.</p>
+    <div class="auth-domain">@email.iimcal.ac.in</div>
+    <div id="googleSignIn" aria-label="Google sign-in"></div>
+    <div id="authStatus" role="status" aria-live="polite">Loading Google Sign-In…</div>
+    <button type="button" id="authRetry" class="auth-retry">Try another account</button>
+    <p class="auth-note">This is a lightweight access check for the static GitHub Pages site.</p>
+  </div>
+</section>
+
+<script>
+(function(){
+  'use strict';
+  const CLIENT_ID = '601601279546-sgrfbclnv287ab1fal046qkm86j5jnev.apps.googleusercontent.com';
+  const ALLOWED_DOMAIN = 'email.iimcal.ac.in';
+  const SESSION_KEY = 'iimcPrepAuth';
+
+  const gate = document.getElementById('authGate');
+  const status = document.getElementById('authStatus');
+  const retry = document.getElementById('authRetry');
+
+  function isAllowed(payload){
+    const email = String(payload && payload.email || '').toLowerCase();
+    const hd = String(payload && payload.hd || '').toLowerCase();
+    return payload && payload.email_verified === true &&
+      email.endsWith('@' + ALLOWED_DOMAIN) && hd === ALLOWED_DOMAIN;
+  }
+
+  function unlock(email, exp){
+    try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify({email:email, exp:exp})); }catch(e){}
+    document.body.classList.remove('auth-locked');
+    gate.hidden = true;
+  }
+
+  function decodeJwt(token){
+    const part = token.split('.')[1];
+    if(!part) throw new Error('Invalid Google credential');
+    const base64 = part.replace(/-/g,'+').replace(/_/g,'/');
+    const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+    return JSON.parse(decodeURIComponent(Array.prototype.map.call(atob(padded), function(c){
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join('')));
+  }
+
+  window.handleGoogleCredential = function(response){
+    try{
+      const payload = decodeJwt(response.credential);
+      const now = Math.floor(Date.now()/1000);
+      if(payload.aud !== CLIENT_ID || !payload.exp || payload.exp <= now){
+        throw new Error('Expired or unexpected Google credential');
+      }
+      if(isAllowed(payload)){
+        status.textContent = 'Signed in as ' + payload.email + '. Opening archive…';
+        unlock(payload.email, payload.exp);
+      }else{
+        try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){}
+        status.textContent = 'Access is limited to verified @email.iimcal.ac.in Google accounts.';
+        status.classList.add('auth-error');
+        retry.style.display = 'inline-block';
+      }
+    }catch(err){
+      console.error('Google sign-in error:', err);
+      status.textContent = 'We could not verify this Google sign-in. Please try again.';
+      status.classList.add('auth-error');
+      retry.style.display = 'inline-block';
+    }
+  };
+
+  function restoreSession(){
+    try{
+      const saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+      const now = Math.floor(Date.now()/1000);
+      if(saved && typeof saved.email === 'string' && saved.email.toLowerCase().endsWith('@'+ALLOWED_DOMAIN) && saved.exp > now){
+        unlock(saved.email, saved.exp);
+        return true;
+      }
+    }catch(e){}
+    return false;
+  }
+
+  function initGoogle(){
+    if(restoreSession()) return;
+    if(!window.google || !google.accounts || !google.accounts.id){
+      status.textContent = 'Google Sign-In did not load. Refresh the page and try again.';
+      status.classList.add('auth-error');
+      retry.style.display = 'inline-block';
+      return;
+    }
+    status.classList.remove('auth-error');
+    status.textContent = 'Use your IIM Calcutta Google account.';
+    google.accounts.id.initialize({
+      client_id: CLIENT_ID,
+      callback: window.handleGoogleCredential,
+      hd: ALLOWED_DOMAIN,
+      auto_select: false,
+      cancel_on_tap_outside: false
+    });
+    google.accounts.id.renderButton(document.getElementById('googleSignIn'), {
+      theme: 'outline', size: 'large', type: 'standard', shape: 'rectangular',
+      text: 'signin_with', logo_alignment: 'left', width: 300
+    });
+  }
+
+  retry.addEventListener('click', function(){
+    status.classList.remove('auth-error');
+    status.textContent = 'Choose your @email.iimcal.ac.in account.';
+    retry.style.display = 'none';
+    try{ google.accounts.id.disableAutoSelect(); }catch(e){}
+  });
+
+  window.addEventListener('load', initGoogle);
+})();
+</script>
 
 <header class="masthead" id="masthead">
   <div class="mast-inner">
